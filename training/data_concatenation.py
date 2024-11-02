@@ -9,7 +9,7 @@ import os
 import pandas as pd
 import logging
 import sys
-
+from data_path import LABELLED_DATA_PATH, COMBINED_FILE_PATH
 # Set up logging to both file and console
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger()
@@ -25,8 +25,8 @@ console_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
 logger.addHandler(console_handler)
 
 # Directories for input and output
-input_folder = '../full_dataset_labelled'
-output_folder = '../full_dataset_combined'
+input_folder = LABELLED_DATA_PATH
+output_folder = COMBINED_FILE_PATH
 
 # Ensure the output folder exists
 os.makedirs(output_folder, exist_ok=True)
