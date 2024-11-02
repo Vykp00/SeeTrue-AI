@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger()
 
 # File handler for logging to a file
-file_handler = logging.FileHandler('dataset_update.log')
+file_handler = logging.FileHandler('data_processor.log')
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
 logger.addHandler(file_handler)
 
