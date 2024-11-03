@@ -7,7 +7,7 @@ docker run --rm -p 8080:8080 -d seetrue_ai
 
 ## Payload
 
-Request Payload
+Request Payload to `/predict`
 ```.json
 {
   "timestamp": 5,
@@ -23,6 +23,7 @@ Request Payload
 
 Expected Response
 ```.json
+
 {
     "predictions": [
         0.826665997505188,
@@ -36,4 +37,5 @@ Expected Response
     ],
     "prev_euclidean_distance": 0.0132
 }
+
 ```
