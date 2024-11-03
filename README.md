@@ -1,4 +1,4 @@
-# HOW TO REPLOY
+# HOW TO DEPLOY
 Model to Fast API and Docker
 ```
 docker build -t seetrue_ai_beta ./seetrue_ai_beta_1
