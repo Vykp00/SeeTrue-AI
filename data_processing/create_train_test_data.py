@@ -72,3 +72,31 @@ test_data.to_csv(os.path.join(output_folder, 'test.csv'), index=False)
 
 logger.info("Saved train and test datasets to 'dataset_split' folder")
 sys.stdout.flush()
+
+files = ['train.csv', 'test.csv']
+
+# Define the mapping for simplifying headers
+simplified_headers = {
+    ' Timestamp ': 'timestamp',
+    ' Gazepoint X ': 'gazepoint_x',
+    ' Gazepoint Y ': 'gazepoint_y',
+    ' Pupil area (right) sq mm ': 'pupil_area_right_sq_mm',
+    ' Pupil area (left) sq mm ': 'pupil_area_left_sq_mm',
+    ' Eye event ': 'eye_event',
+    'Euclidean Distance': 'euclidean_distance',
+    'Result': 'result'
+}
+
+# Process each file
+for file in files:
+    file_path = os.path.join(DATA_SPLIT_PATH, file)
+
+    # Load the data
+    data = pd.read_csv(file_path)
+
+    # Rename columns
+    data = data.rename(columns=simplified_headers)
+
+    # Save the modified data back to the file
+    data.to_csv(file_path, index=False)
+    logger.info(f"Updated headers and saved {file}")
