@@ -26,7 +26,7 @@ os.makedirs(output_folder, exist_ok=True)
 
 # Mapping of action names to numeric codes
 """
-Since we are using TensorFlow in data training and Keras metrics expect integers. 
+Since we are using TensorFlow in data data_processing and Keras metrics expect integers. 
 The our activity label (result) should not be stored as a string (i.e., walking, reading, playing), 
 so let's convert it into an integer.
 """
