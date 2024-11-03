@@ -1,8 +1,8 @@
 # HOW TO DEPLOY
 Model to Fast API and Docker
 ```
-docker build -t seetrue_ai_beta ./seetrue_ai_beta_1
-docker run --rm -p 8080:8080 -d seetrue_ai_beta
+docker build -t seetrue_ai ./fast_server
+docker run --rm -p 8080:8080 -d seetrue_ai
 ```
 
 ## Payload
@@ -16,7 +16,8 @@ Request Payload
   "pupil_area_right_sq_mm": 0.12,
   "pupil_area_left_sq_mm": 0.2,
   "eye_event": "FE",
-  "euclidean_distance": 0.0132
+  "euclidean_distance": 0.0132,
+  "prev_euclidean_distance": null
 }
 ```
 
@@ -32,6 +33,7 @@ Expected Response
         "1",
         "3",
         "2"
-    ]
+    ],
+    "prev_euclidean_distance": 0.0132
 }
 ```
