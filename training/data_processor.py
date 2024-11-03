@@ -49,7 +49,7 @@ for filename in os.listdir(data_folder):
                 data = pd.read_csv(file_path)
 
                 # Add a 'result' column with the mapped value
-                data['result'] = action_map[action]
+                data['Result'] = action_map[action]
 
                 # Save the modified data to the new directory
                 output_file_path = os.path.join(output_folder, filename)
