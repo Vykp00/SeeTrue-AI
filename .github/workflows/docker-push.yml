@@ -27,9 +27,9 @@ jobs:
       # Step 3: Build the Docker image
       - name: Build Docker Image
         run: |
-          docker build -t Vykp00/seetrue-ai:latest fast_server
+          docker build -t ../seetrue-ai:latest fast_server
 
       # Step 4: Push the Docker image to Docker Hub (optional)
       - name: Push Docker Image
         run: |
-          docker push Vykp00/seetrue-ai:latest
+          docker push ../seetrue-ai:latest
