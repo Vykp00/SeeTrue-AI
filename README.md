@@ -16,7 +16,8 @@ Request Payload
   "pupil_area_right_sq_mm": 0.12,
   "pupil_area_left_sq_mm": 0.2,
   "eye_event": "FE",
-  "euclidean_distance": 0.0132
+  "euclidean_distance": 0.0132,
+  "prev_euclidean_distance": null
 }
 ```
 
@@ -32,6 +33,7 @@ Expected Response
         "1",
         "3",
         "2"
-    ]
+    ],
+    "prev_euclidean_distance": 0.0132
 }
 ```
