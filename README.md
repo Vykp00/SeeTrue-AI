@@ -1,8 +1,8 @@
 # HOW TO DEPLOY
 Model to Fast API and Docker
 ```
-docker build -t seetrue_ai_beta ./seetrue_ai_beta_1
-docker run --rm -p 8080:8080 -d seetrue_ai_beta
+docker build -t seetrue_ai ./fast_server
+docker run --rm -p 8080:8080 -d seetrue_ai
 ```
 
 ## Payload
