@@ -6,6 +6,8 @@ from pydantic import BaseModel
 import ydf
 import math
 
+from starlette.responses import JSONResponse
+
 app = FastAPI()
 
 model = ydf.load_model("model")
@@ -24,42 +26,56 @@ class Example(BaseModel):
 
 
 class Output(BaseModel):
-  predictions: List[float]
+  predictions: List[List[float]]
   label_classes: List[str]
-  prev_euclidean_distance: Optional[float] = None # Return prev_euclidean_distance to run interference
+  prev_euclidean_distance: Optional[List[float]] = None # Return prev_euclidean_distance to run interference
 
 @app.get('/hello', status_code=status.HTTP_200_OK)
 def hello_world(response: Response):
     return {'Welcome to SeeTrue AI!': "data"}
 
 @app.post("/predict")
-async def predict(example: Example) -> Output:
-  # Handle prev_euclidean_distance logic based on eye_event and existing value
-  if example.eye_event == "FE":
-    if example.prev_euclidean_distance is None:
-      example.prev_euclidean_distance = example.euclidean_distance
-    else:
-      example.prev_euclidean_distance = example.euclidean_distance
-  elif example.eye_event == "FB":
-    if example.prev_euclidean_distance is None:
-      example.euclidean_distance = 1.0
-      example.prev_euclidean_distance = example.euclidean_distance
+async def predict(examples: List[Example]):
+  processed_batches = []
+  prev_euclidean_distances = None
+
+  for example in examples:
+    # Handle prev_euclidean_distance logic based on eye_event and existing value
+    if example.eye_event == "FE":
+      if example.prev_euclidean_distance is None:
+        example.prev_euclidean_distance = example.euclidean_distance
+      else:
+        example.prev_euclidean_distance = example.euclidean_distance
+    elif example.eye_event == "FB":
+      if example.prev_euclidean_distance is None:
+        example.euclidean_distance = 1.0
+        example.prev_euclidean_distance = example.euclidean_distance
+
+    # For other eye_event values, prev_euclidean_distance is not modified
+
+    # Wrap the example features into a batch, excluding prev_euclidean_distance
+    processed_batches.append({
+      k: v for k, v in example.model_dump().items() if k != "prev_euclidean_distance"
+    })
+    prev_euclidean_distances = example.prev_euclidean_distance
   # For other eye_event values, prev_euclidean_distance is not modified
 
-  # Wrap the example features into a batch, excluding prev_euclidean_distance.
+  # Transpose the batch for model input
   example_batch: Dict[str, List[Any]] = {
-    k: [v] for k, v in example.model_dump().items() if k != "prev_euclidean_distance"
+    key: [batch[key] for batch in processed_batches] for key in processed_batches[0]
   }
-
+  print(example_batch)
+  print("Previous Euclidean distances:", prev_euclidean_distances)
   # Perform prediction
   prediction_batch = model.predict(example_batch).tolist()
 
   # Return the prediction along with the updated prev_euclidean_distance
-  return Output(
-    predictions=prediction_batch[0],
-    label_classes=label_classes,
-    prev_euclidean_distance=example.prev_euclidean_distance
-  )
+  response = {
+    "predictions": prediction_batch,
+    "label_classes": label_classes,
+    "prev_euclidean_distance": prev_euclidean_distances
+  }
+  return JSONResponse(content=response, status_code=status.HTTP_200_OK)
 
 #
 # @app.post("/predict_batch")
