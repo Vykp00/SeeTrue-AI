@@ -1,3 +1,4 @@
+import traceback
 from typing import Any, Dict, List, Optional
 
 import uvicorn
@@ -5,7 +6,7 @@ from fastapi import FastAPI, status, Response
 from pydantic import BaseModel
 import ydf
 import math
-
+from utils import logger, preprocess_data
 from starlette.responses import JSONResponse
 
 app = FastAPI()
@@ -35,51 +36,33 @@ def hello_world(response: Response):
     return {'Welcome to SeeTrue AI!': "data"}
 
 @app.post("/predict")
-async def predict(examples: List[Example]):
-  processed_batches = []
-  prev_euclidean_distances = None
+async def predict(payload: Dict[str, List]):
+  try:
+    # Preprocess the payload into individual records
+    processed_data = preprocess_data(payload)
 
-  for example in examples:
-    # Handle prev_euclidean_distance logic based on eye_event and existing value
-    if example.eye_event == "FE":
-      if example.prev_euclidean_distance is None:
-        example.prev_euclidean_distance = example.euclidean_distance
-      else:
-        example.prev_euclidean_distance = example.euclidean_distance
-    elif example.eye_event == "FB":
-      if example.prev_euclidean_distance is None:
-        example.euclidean_distance = 1.0
-        example.prev_euclidean_distance = example.euclidean_distance
+    print("Preprocessd Data: ", processed_data)
 
-    # For other eye_event values, prev_euclidean_distance is not modified
+    # Aggregate processed data into a single batch input
+    batch_input = {
+      key: [record[key] for record in processed_data if key != "prev_euclidean_distance"]
+      for key in processed_data[0] if key != "prev_euclidean_distance"
+    }
+    print("Input Data: ", batch_input)
+    prediction_batch = model.predict(batch_input).tolist()
+    print(prediction_batch)
+    # Return the prediction along with the updated prev_euclidean_distance
+    response = {
+      "predictions": prediction_batch,
+      "label_classes": label_classes,
+      "batch_input": batch_input,  # Include processed records for verification
+    }
+    return JSONResponse(content=response, status_code=status.HTTP_200_OK)
+  except Exception as e:
+    trace_back_msg = traceback.format_exc()
+    logger.error(f"{str(e)} \n {trace_back_msg}")
+    return JSONResponse(content={"Error": str(e)}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # Wrap the example features into a batch, excluding prev_euclidean_distance
-    processed_batches.append({
-      k: v for k, v in example.model_dump().items() if k != "prev_euclidean_distance"
-    })
-    prev_euclidean_distances = example.prev_euclidean_distance
-  # For other eye_event values, prev_euclidean_distance is not modified
 
-  # Transpose the batch for model input
-  example_batch: Dict[str, List[Any]] = {
-    key: [batch[key] for batch in processed_batches] for key in processed_batches[0]
-  }
-  print(example_batch)
-  print("Previous Euclidean distances:", prev_euclidean_distances)
-  # Perform prediction
-  prediction_batch = model.predict(example_batch).tolist()
-
-  # Return the prediction along with the updated prev_euclidean_distance
-  response = {
-    "predictions": prediction_batch,
-    "label_classes": label_classes,
-    "prev_euclidean_distance": prev_euclidean_distances
-  }
-  return JSONResponse(content=response, status_code=status.HTTP_200_OK)
-
-#
-# @app.post("/predict_batch")
-# async def predict_batch(example_batch):
-#   return model.predict(example_batch).tolist()
 if __name__ == '__main__':
     uvicorn.run("main:app", host="0.0.0.0", port=8080, workers=1, access_log=True)
