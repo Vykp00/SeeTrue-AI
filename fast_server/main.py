@@ -1,85 +1,92 @@
-from typing import Any, Dict, List, Optional
+import traceback
+from typing import List
 
 import uvicorn
+import ydf
 from fastapi import FastAPI, status, Response
 from pydantic import BaseModel
-import ydf
-import math
-
 from starlette.responses import JSONResponse
+
+from utils import logger, preprocess_data
 
 app = FastAPI()
 
 model = ydf.load_model("model")
 label_classes = model.label_classes()
+logger.info(f"Current label_classes: {label_classes}")
+
+# Label mapping
+label_mapping = {
+    "1": "walking",
+    "3": "playing",
+    "2": "reading"
+}
 
 
-class Example(BaseModel):
-  timestamp: float = math.nan
-  gazepoint_x: float = math.nan
-  gazepoint_y: float = math.nan
-  pupil_area_right_sq_mm: float = math.nan
-  pupil_area_left_sq_mm: float = math.nan
-  eye_event: str = ""
-  euclidean_distance: Optional[float] = None
-  prev_euclidean_distance: Optional[float] = None  # Allow None as a valid value
+class DataBatches(BaseModel):
+    timestamp: List[float] = []
+    gazepoint_x: List[float] = []
+    gazepoint_y: List[float] = []
+    pupil_area_right_sq_mm: List[float] = []
+    pupil_area_left_sq_mm: List[float] = []
+    eye_event: List[str] = []
 
 
 class Output(BaseModel):
-  predictions: List[List[float]]
-  label_classes: List[str]
-  prev_euclidean_distance: Optional[List[float]] = None # Return prev_euclidean_distance to run interference
+    walking: float
+    playing: float
+    reading: float
+    process_data: int  # Amount of processed data
+
 
 @app.get('/hello', status_code=status.HTTP_200_OK)
 def hello_world(response: Response):
     return {'Welcome to SeeTrue AI!': "data"}
 
+
 @app.post("/predict")
-async def predict(examples: List[Example]):
-  processed_batches = []
-  prev_euclidean_distances = None
+async def predict(payload: DataBatches):
+    try:
+        # Preprocess the payload into individual records
+        data = payload.model_dump()
+        processed_data = preprocess_data(data)
+        process_data = len(processed_data)
+        # Aggregate processed data into a single batch input
+        batch_input = {
+            key: [record[key] for record in processed_data if key != "prev_euclidean_distance"]
+            for key in processed_data[0] if key != "prev_euclidean_distance"
+        }
+        prediction_batch = model.predict(batch_input).tolist()
 
-  for example in examples:
-    # Handle prev_euclidean_distance logic based on eye_event and existing value
-    if example.eye_event == "FE":
-      if example.prev_euclidean_distance is None:
-        example.prev_euclidean_distance = example.euclidean_distance
-      else:
-        example.prev_euclidean_distance = example.euclidean_distance
-    elif example.eye_event == "FB":
-      if example.prev_euclidean_distance is None:
-        example.euclidean_distance = 1.0
-        example.prev_euclidean_distance = example.euclidean_distance
+        # Calculate means for each label class
+        means = {label_mapping[label]: 0.0 for label in label_mapping.keys()}
+        counts = {label_mapping[label]: 0 for label in label_mapping.keys()}
 
-    # For other eye_event values, prev_euclidean_distance is not modified
+        for prediction in prediction_batch:
+            for i, value in enumerate(prediction):
+                class_label = label_classes[i]
+                mapped_label = label_mapping[class_label]
+                means[mapped_label] += value
+                counts[mapped_label] += 1
 
-    # Wrap the example features into a batch, excluding prev_euclidean_distance
-    processed_batches.append({
-      k: v for k, v in example.model_dump().items() if k != "prev_euclidean_distance"
-    })
-    prev_euclidean_distances = example.prev_euclidean_distance
-  # For other eye_event values, prev_euclidean_distance is not modified
+        # Calculate averages of each prediction
+        for label in means:
+            if counts[label] > 0:
+                means[label] /= counts[label]
 
-  # Transpose the batch for model input
-  example_batch: Dict[str, List[Any]] = {
-    key: [batch[key] for batch in processed_batches] for key in processed_batches[0]
-  }
-  print(example_batch)
-  print("Previous Euclidean distances:", prev_euclidean_distances)
-  # Perform prediction
-  prediction_batch = model.predict(example_batch).tolist()
+        # Construct response
+        response = Output(
+            walking=means["walking"],
+            playing=means["playing"],
+            reading=means["reading"],
+            process_data=process_data
+        )
+        return response
+    except Exception as e:
+        trace_back_msg = traceback.format_exc()
+        logger.error(f"{str(e)} \n {trace_back_msg}")
+        return JSONResponse(content={"Error": str(e)}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-  # Return the prediction along with the updated prev_euclidean_distance
-  response = {
-    "predictions": prediction_batch,
-    "label_classes": label_classes,
-    "prev_euclidean_distance": prev_euclidean_distances
-  }
-  return JSONResponse(content=response, status_code=status.HTTP_200_OK)
 
-#
-# @app.post("/predict_batch")
-# async def predict_batch(example_batch):
-#   return model.predict(example_batch).tolist()
 if __name__ == '__main__':
     uvicorn.run("main:app", host="0.0.0.0", port=8080, workers=1, access_log=True)
