@@ -15,15 +15,13 @@ model = ydf.load_model("model")
 label_classes = model.label_classes()
 
 
-class Example(BaseModel):
-  timestamp: float = math.nan
-  gazepoint_x: float = math.nan
-  gazepoint_y: float = math.nan
-  pupil_area_right_sq_mm: float = math.nan
-  pupil_area_left_sq_mm: float = math.nan
-  eye_event: str = ""
-  euclidean_distance: Optional[float] = None
-  prev_euclidean_distance: Optional[float] = None  # Allow None as a valid value
+class DataBatches(BaseModel):
+  timestamp: List[float] = []
+  gazepoint_x: List[float] = []
+  gazepoint_y: List[float] = []
+  pupil_area_right_sq_mm: List[float] = []
+  pupil_area_left_sq_mm: List[float] = []
+  eye_event: List[str] = []
 
 
 class Output(BaseModel):
@@ -36,10 +34,11 @@ def hello_world(response: Response):
     return {'Welcome to SeeTrue AI!': "data"}
 
 @app.post("/predict")
-async def predict(payload: Dict[str, List]):
+async def predict(payload: DataBatches):
   try:
     # Preprocess the payload into individual records
-    processed_data = preprocess_data(payload)
+    data = payload.model_dump()
+    processed_data = preprocess_data(data)
 
     print("Preprocessd Data: ", processed_data)
 
