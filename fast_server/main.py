@@ -1,66 +1,91 @@
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import List
 
 import uvicorn
+import ydf
 from fastapi import FastAPI, status, Response
 from pydantic import BaseModel
-import ydf
-import math
-from utils import logger, preprocess_data
 from starlette.responses import JSONResponse
+
+from utils import logger, preprocess_data
 
 app = FastAPI()
 
 model = ydf.load_model("model")
 label_classes = model.label_classes()
+logger.info(f"Current label_classes: {label_classes}")
+
+# Label mapping
+label_mapping = {
+    "1": "walking",
+    "3": "playing",
+    "2": "reading"
+}
 
 
 class DataBatches(BaseModel):
-  timestamp: List[float] = []
-  gazepoint_x: List[float] = []
-  gazepoint_y: List[float] = []
-  pupil_area_right_sq_mm: List[float] = []
-  pupil_area_left_sq_mm: List[float] = []
-  eye_event: List[str] = []
+    timestamp: List[float] = []
+    gazepoint_x: List[float] = []
+    gazepoint_y: List[float] = []
+    pupil_area_right_sq_mm: List[float] = []
+    pupil_area_left_sq_mm: List[float] = []
+    eye_event: List[str] = []
 
 
 class Output(BaseModel):
-  predictions: List[List[float]]
-  label_classes: List[str]
-  prev_euclidean_distance: Optional[List[float]] = None # Return prev_euclidean_distance to run interference
+    walking: float
+    playing: float
+    reading: float
+    process_data: int  # Amount of processed data
+
 
 @app.get('/hello', status_code=status.HTTP_200_OK)
 def hello_world(response: Response):
     return {'Welcome to SeeTrue AI!': "data"}
 
+
 @app.post("/predict")
 async def predict(payload: DataBatches):
-  try:
-    # Preprocess the payload into individual records
-    data = payload.model_dump()
-    processed_data = preprocess_data(data)
+    try:
+        # Preprocess the payload into individual records
+        data = payload.model_dump()
+        processed_data = preprocess_data(data)
+        process_data = len(processed_data)
+        # Aggregate processed data into a single batch input
+        batch_input = {
+            key: [record[key] for record in processed_data if key != "prev_euclidean_distance"]
+            for key in processed_data[0] if key != "prev_euclidean_distance"
+        }
+        prediction_batch = model.predict(batch_input).tolist()
 
-    print("Preprocessd Data: ", processed_data)
+        # Calculate means for each label class
+        means = {label_mapping[label]: 0.0 for label in label_mapping.keys()}
+        counts = {label_mapping[label]: 0 for label in label_mapping.keys()}
 
-    # Aggregate processed data into a single batch input
-    batch_input = {
-      key: [record[key] for record in processed_data if key != "prev_euclidean_distance"]
-      for key in processed_data[0] if key != "prev_euclidean_distance"
-    }
-    print("Input Data: ", batch_input)
-    prediction_batch = model.predict(batch_input).tolist()
-    print(prediction_batch)
-    # Return the prediction along with the updated prev_euclidean_distance
-    response = {
-      "predictions": prediction_batch,
-      "label_classes": label_classes,
-      "batch_input": batch_input,  # Include processed records for verification
-    }
-    return JSONResponse(content=response, status_code=status.HTTP_200_OK)
-  except Exception as e:
-    trace_back_msg = traceback.format_exc()
-    logger.error(f"{str(e)} \n {trace_back_msg}")
-    return JSONResponse(content={"Error": str(e)}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        for prediction in prediction_batch:
+            for i, value in enumerate(prediction):
+                class_label = label_classes[i]
+                mapped_label = label_mapping[class_label]
+                means[mapped_label] += value
+                counts[mapped_label] += 1
+
+        # Calculate averages of each prediction
+        for label in means:
+            if counts[label] > 0:
+                means[label] /= counts[label]
+
+        # Construct response
+        response = Output(
+            walking=means["walking"],
+            playing=means["playing"],
+            reading=means["reading"],
+            process_data=process_data
+        )
+        return response
+    except Exception as e:
+        trace_back_msg = traceback.format_exc()
+        logger.error(f"{str(e)} \n {trace_back_msg}")
+        return JSONResponse(content={"Error": str(e)}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 if __name__ == '__main__':
